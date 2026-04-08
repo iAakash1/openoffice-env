@@ -68,10 +68,14 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", 7860))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    print(f"[INFO] Server running on port {port}")
-    server.serve_forever()
 
+    try:
+        server = HTTPServer(("0.0.0.0", port), Handler)
+        print(f"[INFO] Server running on port {port}")
+        server.serve_forever()
 
-if __name__ == "__main__":
-    main()
+    except OSError as e:
+        print(f"[ERROR] Failed to bind server on port {port}: {e}")
+
+    except Exception as e:
+        print(f"[ERROR] Unexpected error: {e}")
