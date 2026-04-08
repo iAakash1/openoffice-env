@@ -1,3 +1,12 @@
+---
+title: OpenOffice Env
+emoji: 🏆
+colorFrom: green
+colorTo: purple
+sdk: docker
+app_file: inference.py
+pinned: false
+---
 # 🏢 OpenOfficeEnv
 
 > 🚀 OpenEnv RL Hackathon Submission — Real-World Productivity Benchmark
