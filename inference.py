@@ -1,30 +1,11 @@
 import os
 import sys
 import json
+import threading
+import time
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from openai import OpenAI
 from env.core import OpenOfficeEnv
-
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"OpenOfficeEnv is running")
-
-def start_server():
-    server = HTTPServer(("0.0.0.0", 7860), Handler)
-    server.serve_forever()
-
-# Start server immediately
-threading.Thread(target=start_server, daemon=True).start()
-
-print("[INFO] Server running on port 7860", file=sys.stderr)
-
-# ------------------------------------------------------------------ #
-# Environment variables                                                #
-# ------------------------------------------------------------------ #
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "gpt-4o-mini")
@@ -34,10 +15,6 @@ if HF_TOKEN is None:
     raise ValueError("HF_TOKEN environment variable is required")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
-
-# ------------------------------------------------------------------ #
-# Prompts                                                              #
-# ------------------------------------------------------------------ #
 
 SYSTEM_PROMPT = """You are an autonomous agent solving real-world office tasks.
 
@@ -107,7 +84,7 @@ def is_palindrome(s):
 After submitting this edit, call run_tests() to verify all tests pass.
 """
 
-
+print("[DEBUG] POST HANDLER ACTIVE")
 def build_user_prompt(obs: dict, last_reward: float, last_feedback: str, action_history: list[str]) -> str:
     data = obs["data"]
     task = obs["task"]
@@ -159,10 +136,6 @@ def build_user_prompt(obs: dict, last_reward: float, last_feedback: str, action_
     )
 
 
-# ------------------------------------------------------------------ #
-# Email classifier                                                     #
-# ------------------------------------------------------------------ #
-
 def classify_email_by_subject(email_id: int, emails: list) -> tuple[str, str]:
     subject = ""
     for e in emails:
@@ -181,10 +154,6 @@ def classify_email_by_subject(email_id: int, emails: list) -> tuple[str, str]:
     else:
         return "general", "medium"
 
-
-# ------------------------------------------------------------------ #
-# Deterministic fallback                                               #
-# ------------------------------------------------------------------ #
 
 def deterministic_fallback(task_name: str, obs_data: dict, action_history: list[str]) -> str | None:
 
@@ -208,7 +177,6 @@ def deterministic_fallback(task_name: str, obs_data: dict, action_history: list[
     elif task_name == "data":
         issues = obs_data.get("issues", [])
 
-        # Phase 1: resolve detected issues
         for issue in issues:
             il = issue.lower()
             if "outlier" in il:
@@ -230,7 +198,6 @@ def deterministic_fallback(task_name: str, obs_data: dict, action_history: list[
                 if action not in action_history:
                     return action
 
-        # Phase 2: normalize all columns not yet normalized
         for action in [
             "normalize_column(column='age')",
             "normalize_column(column='salary')",
@@ -239,7 +206,6 @@ def deterministic_fallback(task_name: str, obs_data: dict, action_history: list[
             if action not in action_history:
                 return action
 
-        # Phase 3: ensure all fill_missing called
         for col in ["age", "salary", "name"]:
             action = f"fill_missing(column='{col}')"
             if action not in action_history:
@@ -256,30 +222,22 @@ def deterministic_fallback(task_name: str, obs_data: dict, action_history: list[
         total      = results.get("total",  0)
 
         if not has_edited:
-            return None  # LLM must write real fix — guided by CODE_SYSTEM_PROMPT
+            return None
         if has_edited and not has_tested:
             return "run_tests()"
         if total > 0 and passed == total:
             return "finish()"
         if has_tested and passed < total:
-            return None  # LLM must attempt smarter fix
+            return None
 
     return None
 
-
-# ------------------------------------------------------------------ #
-# Loop detection                                                       #
-# ------------------------------------------------------------------ #
 
 def is_looping(action_history: list[str], window: int = 4) -> bool:
     if len(action_history) < window:
         return False
     return len(set(action_history[-window:])) == 1
 
-
-# ------------------------------------------------------------------ #
-# Finish guard                                                         #
-# ------------------------------------------------------------------ #
 
 def should_block_finish(task_name: str, obs_data: dict) -> bool:
     if task_name == "email":
@@ -293,10 +251,6 @@ def should_block_finish(task_name: str, obs_data: dict) -> bool:
         return total == 0 or passed < total
     return False
 
-
-# ------------------------------------------------------------------ #
-# LLM call                                                             #
-# ------------------------------------------------------------------ #
 
 def get_action(task_name: str, obs: dict, last_reward: float, last_feedback: str, action_history: list[str]) -> str:
     system = CODE_SYSTEM_PROMPT if task_name == "code" else SYSTEM_PROMPT
@@ -324,10 +278,6 @@ def get_action(task_name: str, obs: dict, last_reward: float, last_feedback: str
         return "finish()"
 
 
-# ------------------------------------------------------------------ #
-# Success check                                                        #
-# ------------------------------------------------------------------ #
-
 def check_success(task_name: str, env: OpenOfficeEnv) -> bool:
     try:
         task_state = env.state()["task_state"]
@@ -341,10 +291,6 @@ def check_success(task_name: str, env: OpenOfficeEnv) -> bool:
     except Exception:
         return False
 
-
-# ------------------------------------------------------------------ #
-# Episode runner                                                       #
-# ------------------------------------------------------------------ #
 
 def run_episode(task_name: str) -> dict:
     env     = OpenOfficeEnv(task_name)
@@ -363,13 +309,11 @@ def run_episode(task_name: str) -> dict:
         while not done:
             fallback = deterministic_fallback(task_name, obs.data, action_history)
 
-            # Layer 0: force code task to always start with edit_code
             if task_name == "code" and step_n == 0:
                 action_str = get_action(task_name, obs.model_dump(), last_reward, last_feedback, action_history)
                 if "edit_code" not in action_str:
                     action_str = get_action(task_name, obs.model_dump(), last_reward, last_feedback, action_history)
                 if "edit_code" not in action_str:
-                    # LLM failed twice — inject a known-good edit
                     action_str = (
                         "edit_code(code='''"
                         "def find_max(arr):\n"
@@ -392,7 +336,6 @@ def run_episode(task_name: str) -> dict:
                     )
                     print(f"  [CODE BOOTSTRAP] injecting known-good edit", file=sys.stderr)
 
-            # Layer 1: loop detected — force fallback
             elif is_looping(action_history):
                 action_str = fallback or "finish()"
                 print(f"  [LOOP DETECTED] forcing: {action_str[:60]}", file=sys.stderr)
@@ -400,18 +343,15 @@ def run_episode(task_name: str) -> dict:
             else:
                 action_str = get_action(task_name, obs.model_dump(), last_reward, last_feedback, action_history)
 
-                # Layer 2: LLM repeated recent action — use fallback
                 if action_str in action_history[-3:] and fallback:
                     action_str = fallback
                     print(f"  [REPEAT OVERRIDE] using fallback: {action_str[:60]}", file=sys.stderr)
 
-                # Layer 3: early finish guard — first 5 steps
                 elif action_str.strip() == "finish()" and step_n < 5:
                     if fallback and fallback != "finish()":
                         action_str = fallback
                         print(f"  [EARLY FINISH GUARD] forcing: {action_str[:60]}", file=sys.stderr)
 
-            # Layer 4: strict completion guard — never allow premature finish
             if action_str.strip() == "finish()":
                 if should_block_finish(task_name, obs.data):
                     hard_fallback = deterministic_fallback(task_name, obs.data, action_history)
@@ -426,7 +366,6 @@ def run_episode(task_name: str) -> dict:
             last_reward   = reward.value
             last_feedback = reward.feedback
 
-            # Force continuation while task incomplete
             if task_name == "email" and obs.data.get("remaining"):
                 done = False
             elif task_name == "code" and step_n < 6:
@@ -472,11 +411,72 @@ def run_episode(task_name: str) -> dict:
     return {"task": task_name, "success": success, "steps": step_n, "rewards": rewards}
 
 
-# ------------------------------------------------------------------ #
-# Entry point                                                          #
-# ------------------------------------------------------------------ #
+_env: OpenOfficeEnv | None = None
+
+
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, format, *args):
+        pass
+
+    def _read_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {}
+
+    def _send_json(self, data: dict, status: int = 200):
+        body = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send_json({"status": "OpenOfficeEnv is running"})
+
+    
+    def do_POST(self):
+        global _env
+        if self.path == "/" or self.path == "/reset":
+            body = self._read_body()
+            task = body.get("task", "email")
+            _env = OpenOfficeEnv(task)
+            obs  = _env.reset()
+            self._send_json(obs.model_dump())
+
+        elif self.path == "/step":
+            if _env is None:
+                self._send_json({"error": "env not initialized — call /reset first"}, status=400)
+                return
+
+            body       = self._read_body()
+            action_str = body.get("action", "finish()")
+            obs, reward, done, info = _env.step(action_str)
+
+            self._send_json({
+                "observation": obs.model_dump(),
+                "reward":      reward.value,
+                "done":        done,
+                "info":        info,
+            })
+
+        else:
+            self._send_json({"error": f"unknown endpoint: {self.path}"}, status=404)
+
+
+def start_server():
+    server = HTTPServer(("0.0.0.0", 7860), Handler)
+    server.serve_forever()
+
 
 if __name__ == "__main__":
+    threading.Thread(target=start_server, daemon=True).start()
+    print("[INFO] Server running on port 7860", file=sys.stderr)
+
     tasks   = ["email", "data", "code"]
     results = []
 
@@ -493,9 +493,7 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
 
-import time
+    print("[INFO] Keeping container alive...", file=sys.stderr)
+    while True:
+        time.sleep(60)
 
-print("[INFO] Keeping container alive...", file=sys.stderr)
-
-while True:
-    time.sleep(60)
