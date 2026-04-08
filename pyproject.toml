@@ -1,0 +1,9 @@
+[project]
+name = "openoffice-env"
+version = "0.1.0"
+description = "OpenOfficeEnv agent"
+dependencies = [
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0"
+]
