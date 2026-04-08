@@ -4,6 +4,24 @@ import json
 from openai import OpenAI
 from env.core import OpenOfficeEnv
 
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OpenOfficeEnv is running")
+
+def start_server():
+    server = HTTPServer(("0.0.0.0", 7860), Handler)
+    server.serve_forever()
+
+# Start server immediately
+threading.Thread(target=start_server, daemon=True).start()
+
+print("[INFO] Server running on port 7860", file=sys.stderr)
+
 # ------------------------------------------------------------------ #
 # Environment variables                                                #
 # ------------------------------------------------------------------ #
@@ -474,3 +492,10 @@ if __name__ == "__main__":
             f"  {r['task']:<6} | {status:<7} | steps={r['steps']:>2} | avg_reward={avg_rew:.3f}",
             file=sys.stderr,
         )
+
+import time
+
+print("[INFO] Keeping container alive...", file=sys.stderr)
+
+while True:
+    time.sleep(60)
