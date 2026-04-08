@@ -1,0 +1,69 @@
+name: OpenOfficeEnv
+version: "1.0.0"
+description: >
+  RL environment simulating real-world office tasks.
+  An agent acts as an autonomous employee completing email triage,
+  data cleaning, and code fixing tasks of increasing difficulty.
+
+entry_point: env.core:OpenOfficeEnv
+
+tags:
+  - openenv
+  - real-world
+  - productivity
+  - multi-task
+
+tasks:
+  - name: email
+    description: Classify and prioritize a set of incoming emails
+    difficulty: easy
+    max_steps: 30
+
+  - name: data
+    description: Clean a corrupted dataset by fixing missing values and formatting
+    difficulty: medium
+    max_steps: 30
+
+  - name: code
+    description: Fix bugs in Python code to pass all tests
+    difficulty: hard
+    max_steps: 30
+
+observation_space:
+  type: object
+  fields:
+    task:
+      type: string
+    data:
+      type: object
+    step_count:
+      type: integer
+
+action_space:
+  type: string
+  description: Function-call style action string
+
+reward_space:
+  type: object
+  fields:
+    value:
+      type: float
+    feedback:
+      type: string
+
+graders:
+  email: env.graders.email_grader:grade
+  data: env.graders.data_grader:grade
+  code: env.graders.code_grader:grade
+
+metadata:
+  reward_shaping:
+    dense: true
+    step_penalty: -0.01
+    loop_penalty: -0.10
+    regression_penalty: -0.05
+    completion_bonus: true
+
+runtime:
+  language: python
+  python_version: "3.10"
