@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "inference.py"]
+CMD ["sh", "-c", "python inference.py && tail -f /dev/null"]
