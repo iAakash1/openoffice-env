@@ -1,5 +1,6 @@
 import os
 import json
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from openai import OpenAI
 
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://api.openai.com/v1"
@@ -7,6 +8,8 @@ MODEL_NAME   = os.getenv("MODEL_NAME")   or "gpt-4o-mini"
 HF_TOKEN     = os.getenv("HF_TOKEN")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if HF_TOKEN else None
+
+_env = None
 
 
 def get_action(task_name: str, obs: dict, history: list) -> str:
@@ -103,9 +106,7 @@ def get_action(task_name: str, obs: dict, history: list) -> str:
                 model=MODEL_NAME,
                 max_tokens=64,
                 timeout=5,
-                messages=[
-                    {"role": "user", "content": json.dumps(obs)},
-                ],
+                messages=[{"role": "user", "content": json.dumps(obs)}],
             )
             return response.choices[0].message.content.strip()
         except Exception:
@@ -137,7 +138,7 @@ def run_task(task_name: str):
 
             obs, reward, done, info = env.step(action_str)
 
-            r_val = round(reward.value, 2)
+            r_val   = round(reward.value, 2)
             rewards.append(r_val)
 
             err     = info.get("error")
@@ -158,7 +159,8 @@ def run_task(task_name: str):
         step_n += 1
         rewards.append(0.0)
         print(
-            f"[STEP] step={step_n} action=finish() reward=0.00 done=true error={str(e).replace(chr(10), ' ')[:200]}",
+            f"[STEP] step={step_n} action=finish() reward=0.00 done=true "
+            f"error={str(e).replace(chr(10), ' ')[:200]}",
             flush=True,
         )
         success = False
@@ -173,9 +175,72 @@ def run_task(task_name: str):
     )
 
 
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, format, *args):
+        return
+
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {}
+
+    def _send_json(self, data, status=200):
+        body = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send_json({"status": "OpenOfficeEnv is running"})
+
+    def do_POST(self):
+        global _env
+        from env.core import OpenOfficeEnv
+
+        if self.path in ["/", "/reset"]:
+            body = self._read_body()
+            task = body.get("task", "email")
+            _env = OpenOfficeEnv(task)
+            obs  = _env.reset()
+            self._send_json(obs.model_dump())
+
+        elif self.path == "/step":
+            if _env is None:
+                self._send_json({"error": "env not initialized — call /reset first"}, 400)
+                return
+            body       = self._read_body()
+            action_str = body.get("action", "finish()")
+            obs, reward, done, info = _env.step(action_str)
+            self._send_json({
+                "observation": obs.model_dump(),
+                "reward":      reward.value,
+                "done":        done,
+                "info":        info,
+            })
+
+        else:
+            self._send_json({"error": f"unknown endpoint: {self.path}"}, 404)
+
+
+def start_server():
+    port   = int(os.getenv("PORT", 7860))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"[INFO] Server running on port {port}", flush=True)
+    server.serve_forever()
+
+
 def main():
-    for task in ["email", "data", "code"]:
-        run_task(task)
+    if os.getenv("OPENENV_VALIDATE") == "1":
+        for task in ["email", "data", "code"]:
+            run_task(task)
+    else:
+        start_server()
 
 
 if __name__ == "__main__":
