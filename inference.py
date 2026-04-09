@@ -249,16 +249,18 @@ def start_server():
     port = int(os.environ.get("PORT", 7860))
     try:
         server = HTTPServer(("0.0.0.0", port), Handler)
+        print(f"[INFO] Server running on port {port}", flush=True)
         server.serve_forever()
     except Exception:
         pass
 
 
 def main():
-    threading.Thread(target=start_server, daemon=True).start()
-
-    for task in ["email", "data", "code"]:
-        run_task(task)
+    if os.environ.get("RUN_AGENT") == "1":
+        for task in ["email", "data", "code"]:
+            run_task(task)
+    else:
+        start_server()
 
 
 if __name__ == "__main__":
