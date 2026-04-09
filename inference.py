@@ -2,11 +2,12 @@ import os
 import json
 from openai import OpenAI
 
-API_BASE_URL = os.environ["API_BASE_URL"]
-API_KEY      = os.environ["API_KEY"]
-MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+client = OpenAI(
+    base_url=os.environ.get("API_BASE_URL", "https://api.openai.com/v1"),
+    api_key=os.environ.get("API_KEY", "dummy-key")
+)
 
 
 def get_action(task_name: str, obs: dict, history: list) -> str:
