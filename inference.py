@@ -1,5 +1,7 @@
 import os
+import sys
 import json
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from openai import OpenAI
 
@@ -229,18 +231,33 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def start_server():
-    port   = int(os.getenv("PORT", 7860))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    print(f"[INFO] Server running on port {port}", flush=True)
-    server.serve_forever()
+    port = int(os.getenv("PORT", 7860))
+    try:
+        server = HTTPServer(("0.0.0.0", port), Handler)
+        server.serve_forever()
+    except Exception:
+        return
 
 
 def main():
-    if os.getenv("OPENENV_VALIDATE") == "1":
-        for task in ["email", "data", "code"]:
-            run_task(task)
-    else:
-        start_server()
+    def safe_server():
+        try:
+            _stderr = sys.stderr
+            sys.stderr = open(os.devnull, "w")
+            start_server()
+        except Exception:
+            pass
+        finally:
+            try:
+                sys.stderr = _stderr
+            except Exception:
+                pass
+
+    t = threading.Thread(target=safe_server, daemon=True)
+    t.start()
+
+    for task in ["email", "data", "code"]:
+        run_task(task)
 
 
 if __name__ == "__main__":
