@@ -5,16 +5,44 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from openai import OpenAI
 
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://api.openai.com/v1"
-MODEL_NAME   = os.getenv("MODEL_NAME")   or "gpt-4o-mini"
-HF_TOKEN     = os.getenv("HF_TOKEN")
+API_BASE_URL = os.environ["API_BASE_URL"]
+API_KEY      = os.environ["API_KEY"]
+MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if HF_TOKEN else None
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 _env = None
 
 
 def get_action(task_name: str, obs: dict, history: list) -> str:
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            max_tokens=50,
+            timeout=10,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Task: {task_name}. "
+                        f"State: {json.dumps(obs.get('data', {}))}. "
+                        f"Recent actions: {history[-3:]}. "
+                        f"Output ONE valid action string only. No explanation."
+                    ),
+                }
+            ],
+        )
+        raw = response.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1].strip()
+            if raw.startswith("python"):
+                raw = raw[6:].strip()
+        if raw:
+            return raw
+    except Exception:
+        pass
+
     data = obs.get("data", {})
 
     try:
@@ -101,18 +129,6 @@ def get_action(task_name: str, obs: dict, history: list) -> str:
 
     except Exception:
         pass
-
-    if client:
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                max_tokens=64,
-                timeout=5,
-                messages=[{"role": "user", "content": json.dumps(obs)}],
-            )
-            return response.choices[0].message.content.strip()
-        except Exception:
-            pass
 
     return "finish()"
 
@@ -231,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def start_server():
-    port = int(os.getenv("PORT", 7860))
+    port = int(os.environ.get("PORT", 7860))
     try:
         server = HTTPServer(("0.0.0.0", port), Handler)
         server.serve_forever()
@@ -242,16 +258,13 @@ def start_server():
 def main():
     def safe_server():
         try:
-            _stderr = sys.stderr
             sys.stderr = open(os.devnull, "w")
+        except Exception:
+            pass
+        try:
             start_server()
         except Exception:
             pass
-        finally:
-            try:
-                sys.stderr = _stderr
-            except Exception:
-                pass
 
     t = threading.Thread(target=safe_server, daemon=True)
     t.start()
