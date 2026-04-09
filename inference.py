@@ -72,7 +72,6 @@ def main():
     try:
         server = HTTPServer(("0.0.0.0", port), Handler)
         print(f"[INFO] Server running on port {port}", flush=True)
-        server.serve_forever()
 
     except OSError as e:
         print(f"[WARN] Port {port} busy, running in fallback mode: {e}", flush=True)
