@@ -1,6 +1,5 @@
 import os
 import json
-import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from openai import OpenAI
 
@@ -256,11 +255,9 @@ def start_server():
 
 
 def main():
-    if os.environ.get("RUN_AGENT") == "1":
-        for task in ["email", "data", "code"]:
-            run_task(task)
-    else:
-        start_server()
+    for task in ["email", "data", "code"]:
+        run_task(task)
+    start_server()
 
 
 if __name__ == "__main__":
