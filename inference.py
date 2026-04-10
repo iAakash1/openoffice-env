@@ -262,15 +262,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
-
-score = sum(rewards) / len(rewards) if rewards else 0.5
-score = max(0.01, min(0.99, score))
-
-print(
-    f"[END] success={str(success).lower()} "
-    f"steps={step_n} "
-    f"rewards={rewards_str}",
-    flush=True,
-)
