@@ -39,11 +39,7 @@ def grade(task_state: dict) -> float:
         return 0.02
 
     score = passed / total
-    score = max(0.01, min(0.99, score))
-    if score >= 0.99:
-        score = 0.98
-    if score <= 0.01:
-        score = 0.02
+    score = max(0.02, min(0.98, score))
     return round(score, 4)
 
 

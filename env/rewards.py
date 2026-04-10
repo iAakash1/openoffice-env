@@ -1,26 +1,8 @@
-"""
-rewards.py — centralized dense reward shaping
-
-compute_reward() is called OPTIONALLY from inference.py or evaluation
-scripts to get a state-based reward signal independent of task actions.
-
-This satisfies the OpenEnv requirement:
-  "Reward function must provide feedback throughout the task trajectory"
-"""
-
-
 def compute_reward(
     task_name: str,
     current_state: dict,
     previous_state: dict,
 ) -> tuple[float, str]:
-    """
-    Compute a dense reward by comparing current vs previous task state.
-    Returns (reward_value, feedback_string).
-
-    Works across all three tasks without knowing task internals —
-    delegates to the right scorer based on task_name.
-    """
     if task_name == "email":
         return _reward_email(current_state, previous_state)
     elif task_name == "data":
@@ -28,12 +10,8 @@ def compute_reward(
     elif task_name == "code":
         return _reward_code(current_state, previous_state)
     else:
-        return 0.0, f"Unknown task: {task_name}"
+        return 0.02, f"Unknown task: {task_name}"
 
-
-# ------------------------------------------------------------------ #
-# Email                                                                #
-# ------------------------------------------------------------------ #
 
 def _reward_email(curr: dict, prev: dict) -> tuple[float, str]:
     from env.graders.email_grader import grade
@@ -50,10 +28,6 @@ def _reward_email(curr: dict, prev: dict) -> tuple[float, str]:
         return -0.02, "No change in email state (possible no-op)"
 
 
-# ------------------------------------------------------------------ #
-# Data                                                                 #
-# ------------------------------------------------------------------ #
-
 def _reward_data(curr: dict, prev: dict) -> tuple[float, str]:
     from env.graders.data_grader import grade
 
@@ -69,19 +43,13 @@ def _reward_data(curr: dict, prev: dict) -> tuple[float, str]:
         return -0.02, "No change in data state (possible no-op)"
 
 
-# ------------------------------------------------------------------ #
-# Code                                                                 #
-# ------------------------------------------------------------------ #
-
 def _reward_code(curr: dict, prev: dict) -> tuple[float, str]:
-    curr_tests = curr.get("test_results", {})
-    prev_tests = prev.get("test_results", {})
-
+    curr_tests  = curr.get("test_results", {})
+    prev_tests  = prev.get("test_results", {})
     curr_passed = curr_tests.get("passed", 0)
     prev_passed = prev_tests.get("passed", 0)
     curr_total  = curr_tests.get("total",  0)
 
-    # Before any test run
     if curr_total == 0 and prev.get("test_results", {}).get("total", 0) == 0:
         curr_code = curr.get("code", "")
         prev_code = prev.get("code", "")

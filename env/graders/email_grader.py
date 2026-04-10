@@ -19,9 +19,5 @@ def grade(task_state: dict) -> float:
     priority_score = (correct_priorities / total_emails) * 0.4
     score          = category_score + priority_score
 
-    score = max(0.01, min(0.99, score))
-    if score >= 0.99:
-        score = 0.98
-    if score <= 0.01:
-        score = 0.02
+    score = max(0.02, min(0.98, score))
     return round(score, 4)
