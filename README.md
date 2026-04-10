@@ -1,3 +1,12 @@
+---
+title: OpenOfficeEnv
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_file: inference.py
+pinned: false
+---
 # OpenOfficeEnv
 
 > A production-grade, OpenEnv-compliant reinforcement learning benchmark modeling real-world office workflows. An LLM-based agent completes knowledge work tasks — email triage, data cleaning, and code repair — evaluated by deterministic programmatic graders with dense, shaped reward signals.
