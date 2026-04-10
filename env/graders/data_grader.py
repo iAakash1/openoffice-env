@@ -5,9 +5,9 @@ def grade(task_state: dict) -> float:
     current_data = task_state.get("data", [])
 
     if not current_data:
-        return 0.01
+        return 0.02
 
-    fields = ["age", "salary", "department", "name"]
+    fields  = ["age", "salary", "department", "name"]
     total   = len(EXPECTED) * len(fields)
     correct = 0
 
@@ -27,6 +27,13 @@ def grade(task_state: dict) -> float:
             if match:
                 correct += 1
 
-    score = correct / total if total > 0 else 0.5
+    if total == 0:
+        return 0.5
 
-    return round(max(0.01, min(0.99, score)), 4)
+    score = correct / total
+    score = max(0.01, min(0.99, score))
+    if score >= 0.99:
+        score = 0.98
+    if score <= 0.01:
+        score = 0.02
+    return round(score, 4)

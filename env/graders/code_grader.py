@@ -8,7 +8,7 @@ def grade(task_state: dict) -> float:
     code = task_state.get("code", "")
 
     if not code.strip():
-        return 0.01
+        return 0.02
 
     with tempfile.TemporaryDirectory() as tmpdir:
         sol_path  = os.path.join(tmpdir, "solution.py")
@@ -29,18 +29,22 @@ def grade(task_state: dict) -> float:
             )
             output = result.stdout + result.stderr
         except subprocess.TimeoutExpired:
-            return 0.01
+            return 0.02
         except Exception:
-            return 0.01
+            return 0.02
 
     passed, total = _parse_score(output)
 
     if total == 0:
-        return 0.01
+        return 0.02
 
     score = passed / total
-
-    return round(max(0.01, min(0.99, score)), 4)
+    score = max(0.01, min(0.99, score))
+    if score >= 0.99:
+        score = 0.98
+    if score <= 0.01:
+        score = 0.02
+    return round(score, 4)
 
 
 def _parse_score(output: str) -> tuple[int, int]:
